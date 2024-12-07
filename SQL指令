@@ -1,0 +1,13 @@
+1.登入用的，回傳u.id(應該要用變數存起來)、u.name(可以顯示歡迎登入某某某)、u.role(用來看接下來要給他做什麼)。打錯的話什麼都不會返回
+SELECT 
+    u.uid, 
+    u.uname, 
+    r.roles 
+FROM 
+    USERS u 
+LEFT JOIN 
+    ROLES r ON u.uid = r.roles_uid
+WHERE 
+    u.email = '輸入的email' AND u.password = '輸入的密碼';
+
+2.
