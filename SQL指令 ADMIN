@@ -1,0 +1,163 @@
+-1???
+DO $$
+BEGIN
+    -- 檢查 ALBUM 表中的最大 aid 並同步序列值
+    PERFORM setval('album_aid_seq', COALESCE((SELECT MAX(aid) FROM ALBUM), 0) + 1);
+END $$;
+
+
+
+
+
+1. 瀏覽所有用戶列表 (包含名字、Email、角色)
+
+SELECT 
+    U.uid, 
+    U.uname, 
+    U.email, 
+    R.roles
+FROM 
+    USERS U
+LEFT JOIN 
+    ROLES R ON U.uid = R.roles_uid;
+
+
+2.更新用戶role(變管理員)
+UPDATE ROLES
+SET roles = 'new_role'
+WHERE roles_uid = 'user_id';
+
+3.修改一首歌的歌名
+UPDATE MUSIC
+SET 
+    mname = 'new_song_name'
+
+WHERE 
+    mid = 'song_id';
+
+4.修改一首歌的歌手
+UPDATE MUSIC
+SET 
+    artist = 'new_artist'
+WHERE 
+    mid = 'song_id';
+
+5.修改一首歌的語言資訊
+UPDATE MUSIC
+SET 
+    language = 'new_language'
+WHERE 
+    mid = 'song_id';
+
+6.修改一首歌的時長
+UPDATE MUSIC
+SET 
+    duration = new_duration
+WHERE 
+    mid = 'song_id';
+
+7.新增一首歌
+INSERT INTO MUSIC (mname, artist, language, duration)
+VALUES ('song_name', 'artist_name', 'language', duration_in_seconds);
+
+8.刪除一首歌
+DELETE FROM MUSIC
+WHERE mid = 'song_id_to_delete';
+
+9.查詢特定使用者的撥放紀錄
+SELECT 
+    U.uid, 
+    U.uname, 
+    M.mname, 
+    PLAY.Play_datetime, 
+    PLAY.Play_duration
+FROM 
+    PLAY
+JOIN 
+    USERS U ON PLAY.Play_uid = U.uid
+JOIN 
+    MUSIC M ON PLAY.Play_mid = M.mid
+WHERE 
+    U.uid = 'specific_user_id' -- 使用使用者 ID
+ORDER BY 
+    PLAY.Play_datetime DESC;
+
+
+
+10.查看 10 天內所有歌曲的播放統計 (包含播放次數與播放時長)
+SELECT 
+    M.mname, 
+    M.artist, 
+    COUNT(PLAY.Play_mid) AS total_play_count, 
+    SUM(PLAY.Play_duration) AS total_play_duration,
+    SUM(PLAY.Play_duration) / NULLIF(M.duration, 0) AS average_play
+FROM 
+    MUSIC M
+LEFT JOIN 
+    PLAY ON M.mid = PLAY.Play_mid
+WHERE 
+    PLAY.Play_datetime >= '2024-11-19' -- Replace with start date
+    AND PLAY.Play_datetime <= '2024-11-29' -- Replace with end date
+GROUP BY 
+    M.mid
+ORDER BY 
+    total_play_count DESC;
+
+11.瀏覽所有專輯
+SELECT 
+    A.aname AS album_name, 
+    COUNT(IA.A_mid) AS total_songs
+FROM 
+    ALBUM A
+LEFT JOIN 
+    IN_A IA ON A.aid = IA.A_aid
+GROUP BY 
+    A.aid
+ORDER BY 
+    total_songs DESC;
+
+12.新增專輯
+INSERT INTO ALBUM (aname)
+VALUES ('new_album_name');
+
+13.刪除專輯
+DELETE FROM IN_A
+WHERE A_aid = 'album_id_to_delete';
+
+DELETE FROM ALBUM
+WHERE aid = 'album_id_to_delete';
+
+14.將歌曲加入專輯中
+(i)+入一首歌
+INSERT INTO IN_A (A_mid, A_aid)
+VALUES ('69', '1');
+(ii)多首歌加入...
+INSERT INTO IN_A (A_mid, A_aid)
+VALUES 
+    ('song_id_1', 'album_id'),
+    ('song_id_2', 'album_id'),
+    ('song_id_3', 'album_id');
+
+15.把歌曲從專輯中刪掉
+DELETE FROM IN_A
+WHERE A_mid = 'song_id' AND A_aid = 'album_id';
+
+16.建立當日個人化推薦歌單
+
+DO $$
+BEGIN
+    -- 確認當天推薦歌單是否存在，若不存在則建立
+    INSERT INTO R_PLAYLIST (rcreated_for_uid, rcreated_by_uid, date)
+    VALUES ('user_id', 'admin_id_or_system_uid', 'input_date')
+    ON CONFLICT DO NOTHING;
+
+    -- 把推薦的20首歌放進去(假設有個機器學習演算法或分析師會給我們20個mid)
+    INSERT INTO IN_R (R_mid, R_rcreated_for_uid, R_date)
+    VALUES 
+        ('song_id_1', 'user_id', 'input_date'),
+        ('song_id_2', 'user_id', 'input_date'),
+        ('song_id_3', 'user_id', 'input_date'),
+        ...
+        ('song_id_20', 'user_id', 'input_date')
+    ON CONFLICT DO NOTHING;
+END $$;
