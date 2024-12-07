@@ -1,3 +1,12 @@
+##USER
+
+
+
+0.註冊(把新資料存到DB)
+INSERT INTO USERS (uname, email, password)
+VALUES ('new_user_name', 'new_user_email', 'hashed_password');
+
+
 1.登入用的，回傳u.id(應該要用變數存起來)、u.name(可以顯示歡迎登入某某某)、u.role(用來看接下來要給他做什麼)。打錯的話什麼都不會返回
 SELECT 
     u.uid, 
@@ -10,4 +19,361 @@ LEFT JOIN
 WHERE 
     u.email = '輸入的email' AND u.password = '輸入的密碼';
 
-2.
+2.搜尋歌名用的，字串有就算(不分大小寫)，並以平均撥放次數排序
+SELECT 
+    m.mname, 
+    m.artist, 
+    m.language, 
+    m.duration, 
+    COALESCE(SUM(p.Play_duration) / NULLIF(SUM(m.duration), 0), 0) AS avg_play_times,
+    m.mid --存在一個temp_list，方便用戶選取
+FROM 
+    MUSIC m
+LEFT JOIN 
+    PLAY p ON m.mid = p.Play_mid
+WHERE 
+    LOWER(m.mname) LIKE LOWER('%字串%')
+GROUP BY 
+    m.mid
+ORDER BY 
+    avg_play_times DESC;
+
+
+3.搜尋專輯用的，字串有就算(不分大小寫)，並以平均撥放次數排序
+SELECT 
+    A.aname, 
+    COALESCE(SUM(PLAY.Play_duration) / NULLIF(SUM(M.duration), 0), 0) AS avg_play_count,
+    A.aid--存在一個temp_list，方便用戶選取
+FROM 
+    ALBUM A
+JOIN 
+    IN_A IA ON A.aid = IA.A_aid
+JOIN 
+    MUSIC M ON IA.A_mid = M.mid
+LEFT JOIN 
+    PLAY ON M.mid = PLAY.Play_mid
+WHERE 
+    LOWER(A.aname) LIKE LOWER('%input_album_name%')
+GROUP BY 
+    A.aid
+ORDER BY 
+    avg_play_count DESC;
+
+
+
+4.搜尋歌手
+SELECT 
+    m.artist, 
+    COALESCE(SUM(p.Play_duration) / NULLIF(SUM(m.duration), 0), 0) AS avg_play_times
+FROM 
+    MUSIC m
+LEFT JOIN 
+    PLAY p ON m.mid = p.Play_mid
+WHERE 
+    LOWER(m.artist) LIKE LOWER('%歌手名%')
+GROUP BY 
+    m.artist
+ORDER BY 
+    avg_play_times DESC;
+
+
+5.列出歌曲相關資訊(input是m.id，所以前一頁選擇的選項可能要存起來)
+SELECT 
+    M.mname, 
+    M.artist, 
+    M.language, 
+    M.duration, 
+    A.aname AS album_name
+FROM 
+    MUSIC M
+LEFT JOIN 
+    IN_A IA ON M.mid = IA.A_mid
+LEFT JOIN 
+    ALBUM A ON IA.A_aid = A.aid
+WHERE 
+    M.mid = 'id';
+
+
+6.列出專輯相關資訊(input是id)
+SELECT 
+    a.aname AS album_name, 
+    m.mname AS song_name, 
+    m.artist, 
+    m.language, 
+    m.duration,
+	m.mid---存在一個temp_list，方便用戶選取
+FROM 
+    ALBUM a
+LEFT JOIN 
+    IN_A i ON a.aid = i.A_aid
+LEFT JOIN 
+    MUSIC m ON i.A_mid = m.mid
+WHERE 
+    a.aid = '專輯id'
+ORDER BY 
+    m.mid ASC;
+
+7.i 列出歌手相關資訊前10歌曲+前5專輯名
+SELECT 
+    M.mname,  
+    COALESCE(SUM(PLAY.Play_duration) / NULLIF(SUM(M.duration), 0), 0) AS avg_play_count,
+    m.mid---存在一個temp_list，方便用戶選取
+FROM 
+    MUSIC M
+LEFT JOIN 
+    PLAY ON M.mid = PLAY.Play_mid
+WHERE 
+    M.artist = 'Lisa Moore'
+GROUP BY 
+    M.mid
+ORDER BY 
+    avg_play_count DESC
+LIMIT 10;
+7.ii
+SELECT 
+    A.aname,
+    COALESCE(SUM(PLAY.Play_duration) / NULLIF(SUM(M.duration), 0), 0) AS avg_play_count,
+    A.aid---存在一個temp_list，方便用戶選取
+FROM 
+    ALBUM A
+JOIN 
+    IN_A IA ON A.aid = IA.A_aid
+JOIN 
+    MUSIC M ON IA.A_mid = M.mid
+LEFT JOIN 
+    PLAY ON M.mid = PLAY.Play_mid
+WHERE 
+    M.artist = 'Lisa Moore'
+GROUP BY 
+    A.aid
+ORDER BY 
+    avg_play_count DESC
+LIMIT 5;
+
+
+8.搜尋公開的播放清單
+SELECT 
+    P.pname, 
+    COALESCE(SUM(PLAY.Play_duration) / NULLIF(SUM(M.duration), 0), 0) AS avg_play_count,
+    P.pid --用templist存起來
+FROM 
+    PLAYLIST P
+JOIN 
+    IN_P IP ON P.pid = IP.P_pid
+JOIN 
+    MUSIC M ON IP.P_mid = M.mid
+LEFT JOIN 
+    PLAY ON M.mid = PLAY.Play_mid
+WHERE 
+    LOWER(P.pname) LIKE LOWER('%gr%') AND P.permissions = 'public'
+GROUP BY 
+    P.pid
+ORDER BY 
+    avg_play_count DESC;
+
+
+
+9.查看一個playlist的歌曲資訊(應該8、10都會用到)，但只有從10過來的可以做操作(13-17)
+SELECT 
+    P.pname AS playlist_name,
+	M.mid,
+    M.mname AS song_name,
+    M.artist AS artist,
+    M.duration AS duration,
+    IP.index_in_playlist AS song_order
+FROM 
+    PLAYLIST P
+JOIN 
+    IN_P IP ON P.pid = IP.P_pid
+JOIN 
+    MUSIC M ON IP.P_mid = M.mid
+WHERE 
+    P.pid = '14'
+ORDER BY 
+    IP.index_in_playlist;
+
+
+10.查看自己的所有Playlist 
+SELECT 
+    pid, 
+    pname, 
+    permissions 
+FROM 
+    PLAYLIST
+WHERE 
+    created_by_uid = 'user_uid';
+
+11.使用者新增一個空的playlist(輸入名子跟權限)
+INSERT INTO PLAYLIST (pname, created_by_uid, permissions)
+VALUES ('new_playlist_name', 'user_uid', 'permission_type');
+
+12.使用者刪除一個PLAYLIST
+DELETE FROM 
+    PLAYLIST
+WHERE 
+    pid = 'playlist_id' AND created_by_uid = 'user_uid';
+
+13.修改 Playlist 名稱
+UPDATE 
+    PLAYLIST
+SET 
+    pname = 'new_playlist_name'
+WHERE 
+    pid = 'playlist_id' AND created_by_uid = 'user_uid';
+
+
+14.調動 Playlist 裡歌曲順序 (交換兩首歌曲的位置)
+-- 暫存兩首歌曲的 index 值
+DO $$
+DECLARE
+    index_a INT;
+    index_b INT;
+BEGIN
+    -- 取得兩首歌曲的原始順序
+    SELECT index_in_playlist INTO index_a
+    FROM IN_P
+    WHERE P_pid = 'playlist_id' AND P_mid = 'song_a_id' AND P_createdby_uid = 'user_uid';
+
+    SELECT index_in_playlist INTO index_b
+    FROM IN_P
+    WHERE P_pid = 'playlist_id' AND P_mid = 'song_b_id' AND P_createdby_uid = 'user_uid';
+
+    -- 更新歌曲 A 的順序
+    UPDATE IN_P
+    SET index_in_playlist = index_b
+    WHERE P_pid = 'playlist_id' AND P_mid = 'song_a_id' AND P_createdby_uid = 'user_uid';
+
+    -- 更新歌曲 B 的順序
+    UPDATE IN_P
+    SET index_in_playlist = index_a
+    WHERE P_pid = 'playlist_id' AND P_mid = 'song_b_id' AND P_createdby_uid = 'user_uid';
+END $$;
+
+15.刪除playlist的一首歌
+DELETE FROM 
+    IN_P
+WHERE 
+    P_mid = 'song_id' AND 
+    P_pid = 'playlist_id' AND 
+    P_createdby_uid = 'user_uid';
+
+16.新增一首歌到playlist裡
+INSERT INTO IN_P (P_mid, P_pid, P_createdby_uid, index_in_playlist)
+VALUES (
+    'song_id', 
+    'playlist_id', 
+    'user_uid', 
+    COALESCE((SELECT MAX(index_in_playlist) FROM IN_P WHERE P_pid = 'playlist_id'), 0) + 1
+);
+
+17.調整播放清單權限
+UPDATE 
+    PLAYLIST
+SET 
+    permissions = 'new_permission_type'
+WHERE 
+    pid = 'playlist_id' AND created_by_uid = 'user_uid';
+
+18.瀏覽7天內線上的 Top 20 歌曲(本周排行榜)
+SELECT 
+    M.mname, 
+    M.artist, 
+    M.mid,
+    COALESCE(SUM(PLAY.Play_duration) / NULLIF(SUM(M.duration), 0), 0) AS avg_play_count
+FROM 
+    MUSIC M
+LEFT JOIN 
+    PLAY ON M.mid = PLAY.Play_mid
+WHERE 
+    PLAY.Play_datetime >= ('2024-11-29'::DATE - INTERVAL '7 days')
+    AND PLAY.Play_datetime <= '2024-11-29'::DATE
+GROUP BY 
+    M.mid
+ORDER BY 
+    avg_play_count DESC
+LIMIT 20;
+
+19.瀏覽當日系統推薦的個人化歌單(r_playlist)
+SELECT 
+    M.mname, 
+    M.artist, 
+    M.language, 
+    M.duration,
+    M.mid
+FROM 
+    IN_R IR
+JOIN 
+    MUSIC M ON IR.R_mid = M.mid
+WHERE 
+    IR.R_rcreated_for_uid = 'user_uid' 
+    AND IR.R_date = '2024-11-29'::DATE;
+
+21.瀏覽7天內的一個用戶的 Top 20 歌曲
+SELECT 
+    M.mname, 
+    M.artist, 
+    COALESCE(SUM(PLAY.Play_duration) / NULLIF(SUM(M.duration), 0), 0) AS avg_play_count
+FROM 
+    MUSIC M
+LEFT JOIN 
+    PLAY ON M.mid = PLAY.Play_mid
+WHERE 
+    PLAY.Play_datetime >= ('2024-11-29'::DATE - INTERVAL '7 days')
+    AND PLAY.Play_datetime <= '2024-11-29'::DATE
+    AND PLAY.Play_uid = 'user_uid'
+GROUP BY 
+    M.mid
+ORDER BY 
+    avg_play_count DESC
+LIMIT 20;
+
+22. 按照隨機生成的 20 個號碼，顯示 20 首歌曲
+SELECT 
+    M.mname, 
+    M.artist, 
+    M.language, 
+    M.duration
+FROM 
+    MUSIC M
+WHERE 
+    M.mid IN (1, 5, 10, 12, 15, 18, 20, 25, 30, 33, 37, 40, 45, 50, 55, 60, 65, 70, 75, 80);
+
+
+23.用戶改名
+UPDATE USERS
+SET uname = 'new_user_name'
+WHERE uid = 'user_id';
+
+24.用戶改密碼
+(i)驗證舊密碼
+SELECT 
+    uid
+FROM 
+    USERS
+WHERE 
+    uid = 'user_id' AND password = 'hashed_old_password';
+(ii)更新密碼
+UPDATE USERS
+SET password = 'new_password'
+WHERE uid = 'user_id';
+
+
+
+-1.???
+DO $$
+DECLARE
+    max_uid INT;
+BEGIN
+    -- 查找當前 USERS 表中最大的 uid 值
+    SELECT COALESCE(MAX(uid), 0) INTO max_uid FROM USERS;
+
+    -- 重置序列值，使其從最大值加 1 開始
+    PERFORM setval(pg_get_serial_sequence('USERS', 'uid'), max_uid + 1, false);
+END $$;
+
+-2???
+DO $$
+BEGIN
+    -- 檢查 PLAYLIST 表中的最大 pid 並同步序列值
+    PERFORM setval('playlist_pid_seq', COALESCE((SELECT MAX(pid) FROM PLAYLIST), 0) + 1);
+END $$;
