@@ -26,6 +26,8 @@ class LogIn(Action):
         print(f'Read pwd: {pwd_input}')
         count = 2
         
+        print({pwd_input})
+        print({pwd})
         while count > 0 and pwd_input != pwd:
             conn.send(f'[INPUT]Password incorrect, please enter password (remaining try: {count}): '.encode('utf-8'))
             pwd_input = conn.recv(100).decode("utf-8")
