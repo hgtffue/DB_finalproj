@@ -1,4 +1,4 @@
-from ..Action import Action
+from .Action import Action
 from DB_utils import search_public_playlists, view_playlist_details, view_user_playlists
 
 class ViewPlaylist(Action):
