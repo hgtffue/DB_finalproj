@@ -1,5 +1,5 @@
 from .Action import Action
-from DB_utils import create_playlist, add_song_to_playlist, remove_song_from_playlist
+from DB_utils import create_playlist, add_song_to_playlist, remove_song_from_playlist, lock_playlist
 from threading import Lock
 
 create_playlist_lock = Lock()

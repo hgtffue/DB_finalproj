@@ -13,12 +13,13 @@ DB_PORT = 5432
 cur = None
 db = None
 create_event_lock = Lock()
+add_playlist_lock = Lock()
 
 def db_connect():
     exit_code = 0
     try:
         global db
-        db = psycopg2.connect(database=DB_NAME, user=DB_USER, password='Ll125844688', 
+        db = psycopg2.connect(database=DB_NAME, user=DB_USER, password='your_password', 
                               host=DB_HOST, port=DB_PORT)
         print("Successfully connect to DBMS.")
         global cur
@@ -45,19 +46,41 @@ def print_table(cur):
 
 # ============================= System function =============================
 def db_register_user(username, pwd, email):
-    cmd =   """
-            insert into "users" (uname, password, email) values (%s, %s, %s)
+    try:
+        # 同步序列值，避免重复主键问题
+        sync_sequence_query = """
+            DO $$
+            BEGIN
+                -- 同步 "users_uid_seq" 序列的值
+                PERFORM setval('users_uid_seq', COALESCE((SELECT MAX(uid) FROM users), 0) + 1, false);
+            END $$;
+        """
+        cur.execute(sync_sequence_query)
+        
+        # 插入新用户
+        cmd = """
+            INSERT INTO "users" (uname, password, email) 
+            VALUES (%s, %s, %s)
             RETURNING uid;
-            """
-    cur.execute(cmd, [username, pwd, email])
-    userid = cur.fetchone()[0]
-    print(f"Register user {username} with userid {userid}")
+        """
+        cur.execute(cmd, [username, pwd, email])
+        userid = cur.fetchone()[0]
+        print(f"Register user {username} with userid {userid}")
+        
+        # 插入用户角色
+        cmd = """
+            INSERT INTO "roles" (roles_uid, roles) 
+            VALUES (%s, 'User');
+        """
+        cur.execute(cmd, [userid])
+        db.commit()
+        
+        return userid
 
-    cmd =   """
-            insert into "roles" (roles_uid, roles) VALUES (%s, 'User');
-            """
-    cur.execute(cmd, [userid])
-    db.commit()
+    except Exception as e:
+        db.rollback()
+        raise Exception(f"Failed to register user: {str(e)}")
+
 
 def fetch_user(userid): 
     cmd =   """
@@ -279,6 +302,20 @@ def create_playlist(user_id, playlist_name, permissions):
     finally:
         create_event_lock.release()
 
+def lock_playlist(playlist_id):
+    """
+    锁定播放清单，防止其他事务读取或修改。
+    :param playlist_id: 播放清单 ID
+    """
+    query = """
+        SELECT * 
+        FROM playlist 
+        WHERE pid = %s
+        FOR UPDATE;
+    """
+    cur.execute(query, [playlist_id])
+
+
 def add_song_to_playlist(user_id, playlist_id, song_id):
     """
     將歌曲新增到播放清單。
@@ -287,8 +324,9 @@ def add_song_to_playlist(user_id, playlist_id, song_id):
     :param song_id: 歌曲 ID
     :raises: Exception 如果新增失敗，回傳錯誤訊息。
     """
-    create_event_lock.acquire()
+    add_playlist_lock.acquire() 
     try:
+
         query = """
             INSERT INTO "in_p" (p_mid, p_pid, p_createdby_uid, index_in_playlist)
             VALUES (
@@ -308,7 +346,7 @@ def add_song_to_playlist(user_id, playlist_id, song_id):
     except Exception as e:
         db.rollback()
         raise Exception(f"Failed to add song to playlist: {str(e)}")
-    create_event_lock.release()
+    add_playlist_lock.release()
 
 
 
