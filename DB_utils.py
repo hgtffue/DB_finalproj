@@ -12,6 +12,7 @@ DB_PORT = 5432
 
 cur = None
 db = None
+create_event_lock = Lock()
 
 def db_connect():
     exit_code = 0
@@ -253,6 +254,7 @@ def create_playlist(user_id, playlist_name, permissions):
     :param permissions: 播放清單權限 ('Public' 或 'Private')
     :return: 新的播放清單 ID
     """
+    create_event_lock.acquire()
     try:
         query = """
             DO $$
@@ -274,6 +276,8 @@ def create_playlist(user_id, playlist_name, permissions):
     except Exception as e:
         db.rollback()
         raise Exception(f"Failed to create playlist: {str(e)}")
+    finally:
+        create_event_lock.release()
 
 def add_song_to_playlist(user_id, playlist_id, song_id):
     """
@@ -283,6 +287,7 @@ def add_song_to_playlist(user_id, playlist_id, song_id):
     :param song_id: 歌曲 ID
     :raises: Exception 如果新增失敗，回傳錯誤訊息。
     """
+    create_event_lock.acquire()
     try:
         query = """
             INSERT INTO "in_p" (p_mid, p_pid, p_createdby_uid, index_in_playlist)
@@ -303,6 +308,7 @@ def add_song_to_playlist(user_id, playlist_id, song_id):
     except Exception as e:
         db.rollback()
         raise Exception(f"Failed to add song to playlist: {str(e)}")
+    create_event_lock.release()
 
 
 
@@ -355,6 +361,7 @@ def view_playlist_details(playlist_id):
     :param playlist_id: 播放清單 ID
     :return: 格式化的播放清單內容
     """
+    create_event_lock.acquire()
     query = """
         SELECT 
             p.pname AS playlist_name,
@@ -375,7 +382,9 @@ def view_playlist_details(playlist_id):
             ip.index_in_playlist;
     """
     cur.execute(query, [playlist_id])
+    create_event_lock.release()
     return print_table(cur)
+    
 
 def search_public_playlists(keyword):
     """
@@ -403,7 +412,7 @@ def search_public_playlists(keyword):
         ORDER BY 
             avg_play_count DESC;
     """
-    cur.execute(query, [f"%{keyword}%"])
+    cur.execute(query, [f"{keyword}%"])
     return print_table(cur)
 
 def view_top_20_songs(current_date):
