@@ -99,6 +99,4 @@ python .\client.py
 
 - PostgreSQL: 16.4
 
-## 參考資料
 
-- README 說明文件及報告內容來自 **113-1 資料庫管理**
